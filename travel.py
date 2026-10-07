@@ -1,9 +1,6 @@
 import requests
 import logging
 from typing import Any
-import json
-import dataclasses
-
 
 logging.basicConfig(filename='travel.log', level=logging.INFO,format='%(asctime)s - %(levelname)s - %(message)s')
 
@@ -22,6 +19,7 @@ def main() -> None:
     result = location["results"][0]
     name =  result["name"]
     country = result.get("country", "Unknown")
+    country_code = result.get("country_code")
     latitude = result["latitude"]
     longitude = result["longitude"]
 
@@ -30,15 +28,26 @@ def main() -> None:
     if not weather or "current" not in weather:
         print("Could not retrieve weather information.")
         return
-
+    
     description = get_description(weather["current"].get("weather_code"))
     temperature = weather["current"].get("temperature_2m")
 
+    info = get_info(country_code)
+
+    if not info:
+        print("Could not retrieve country information.")
+        return
+
+    languages = info.get("languages", [])
+    language_names = [language["name"] for language in languages]
+
     print(f"Destination: {name}, {country}")
+    print(f"Region: {info.get('region')}")
     print(f"Longitude: {longitude}")
     print(f"Latitude: {latitude}")
     print(f"Temperature: {temperature}°C")
     print(f"Weather: {description}")
+    print(f"Languages: {', '.join(language_names)}")
 
     logging.info(f"Fetched weather for {name}, {country} ({latitude}, {longitude})")
 
@@ -138,6 +147,37 @@ def get_description(code: int | None) -> str:
         return "Unknown weather condition"
     return descriptions.get(code, "Unknown weather condition")
 
+def get_info(country: str | None) -> dict[ str, Any] | None:
+    if not country:
+        return None
+    try:
+        info_url = f"https://countries.dev/alpha/{country}"
+
+        response = requests.get(info_url,params={"fields": "region,languages"}, timeout=10)
+
+        response.raise_for_status()
+
+        data = response.json()
+
+        return data
+
+    except requests.exceptions.HTTPError:
+        print("The country information API returned an error.")
+        logging.error("The country information API returned an error.")
+    except requests.exceptions.Timeout:
+        print("The country information request took too long")
+        logging.error("The country information request took too long.")
+    except requests.exceptions.ConnectionError:
+        print("Could not connect to the country information API.")
+        logging.error("Could not connect to the country information API.")
+    except requests.exceptions.RequestException as e:
+        print(f"Something went wrong with the country information request: {e}")
+        logging.error(f"Country information request error: {e}")
+    except ValueError:
+        print("The country information API returned invalid JSON.")
+        logging.error("The country information API returned invalid JSON.")
+
+    return None
 
 if __name__ == "__main__":
     main()
