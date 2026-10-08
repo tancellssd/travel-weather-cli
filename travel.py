@@ -40,6 +40,20 @@ def main() -> None:
 
     languages = info.get("languages", [])
     language_names = [language["name"] for language in languages]
+    currencies = info.get("currencies", [])
+    if not currencies:
+        print("No currency information available.")
+        return
+    
+    currency_code = currencies[0]["code"]
+    currency_name = currencies[0]["name"]
+
+    currency = get_currency(currency_code)
+    if not currency:
+        print("Could not retrieve the exchange rate")
+        return
+    
+    rate = currency["rate"]
 
     print(f"Destination: {name}, {country}")
     print(f"Region: {info.get('region')}")
@@ -48,6 +62,8 @@ def main() -> None:
     print(f"Temperature: {temperature}°C")
     print(f"Weather: {description}")
     print(f"Languages: {', '.join(language_names)}")
+    print(f"Currency: {currency_name} ({currency_code})")
+    print(f"Exchange rate: 1USD = {rate} {currency_code}")
 
     logging.info(f"Fetched weather for {name}, {country} ({latitude}, {longitude})")
 
@@ -153,7 +169,7 @@ def get_info(country: str | None) -> dict[ str, Any] | None:
     try:
         info_url = f"https://countries.dev/alpha/{country}"
 
-        response = requests.get(info_url,params={"fields": "region,languages"}, timeout=10)
+        response = requests.get(info_url,params={"fields": "region,languages,currencies"}, timeout=10)
 
         response.raise_for_status()
 
@@ -170,6 +186,25 @@ def get_info(country: str | None) -> dict[ str, Any] | None:
     except requests.exceptions.ConnectionError:
         print("Could not connect to the country information API.")
         logging.error("Could not connect to the country information API.")
+    except requests.exceptions.RequestException as e:
+        print(f"Something went wrong with the country information request: {e}")
+        logging.error(f"Country information request error: {e}")
+    except ValueError:
+        print("The country information API returned invalid JSON.")
+        logging.error("The country information API returned invalid JSON.")
+
+    return None
+
+def get_currency(currency_code):
+    currency_url = f"https://api.frankfurter.dev/v2/rate/USD/{currency_code}"
+    
+    try:
+        response =requests.get(currency_url, timeout=10)
+        response.raise_for_status()
+        data = response.json()
+
+        return data
+
     except requests.exceptions.RequestException as e:
         print(f"Something went wrong with the country information request: {e}")
         logging.error(f"Country information request error: {e}")
