@@ -31,6 +31,8 @@ def main() -> None:
     
     description = get_description(weather["current"].get("weather_code"))
     temperature = weather["current"].get("temperature_2m")
+    timezone = weather.get("timezone")
+    local_time = weather.get("current", {}).get("time")
 
     info = get_info(country_code)
 
@@ -41,7 +43,7 @@ def main() -> None:
     languages = info.get("languages", [])
     language_names = [language["name"] for language in languages]
     currencies = info.get("currencies", [])
-    if not currencies:
+    if not currencies or not currencies[0].get("code"):
         print("No currency information available.")
         return
     
@@ -49,7 +51,7 @@ def main() -> None:
     currency_name = currencies[0]["name"]
 
     currency = get_currency(currency_code)
-    if not currency:
+    if not currency or "rate" not in currency:
         print("Could not retrieve the exchange rate")
         return
     
@@ -59,11 +61,13 @@ def main() -> None:
     print(f"Region: {info.get('region')}")
     print(f"Longitude: {longitude}")
     print(f"Latitude: {latitude}")
+    print(f"Timezone: {timezone}")
+    print(f"Local time: {local_time}")
     print(f"Temperature: {temperature}°C")
     print(f"Weather: {description}")
     print(f"Languages: {', '.join(language_names)}")
     print(f"Currency: {currency_name} ({currency_code})")
-    print(f"Exchange rate: 1USD = {rate} {currency_code}")
+    print(f"Exchange rate: 1 USD = {rate:.4f} {currency_code}")
 
     logging.info(f"Fetched weather for {name}, {country} ({latitude}, {longitude})")
 
@@ -106,7 +110,8 @@ def get_weather(latitude: float, longitude: float) -> dict[str, Any] | None :
     params = {
         "latitude": latitude,
         "longitude": longitude,
-        "current" : "temperature_2m,weather_code"
+        "current" : "temperature_2m,weather_code",
+        "timezone": "auto"
     }
     try:
         response = requests.get(weather_url, params=params, timeout=10)
@@ -114,7 +119,6 @@ def get_weather(latitude: float, longitude: float) -> dict[str, Any] | None :
         response.raise_for_status()
 
         data = response.json()
-
         return data
 
     except requests.exceptions.HTTPError:
